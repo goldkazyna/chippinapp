@@ -56,6 +56,5 @@ Route::middleware('auth:sanctum')->group(function () {
 
 });
 
-// PDF — outside auth:sanctum group so TokenFromQuery runs BEFORE auth check
-Route::get('/bills/{bill}/pdf', [PdfController::class, 'generate'])
-    ->middleware([\App\Http\Middleware\TokenFromQuery::class, 'auth:sanctum']);
+// PDF — public route, auth checked manually inside controller (supports ?token= for browser)
+Route::get('/bills/{bill}/pdf', [PdfController::class, 'generate']);

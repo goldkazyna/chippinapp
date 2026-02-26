@@ -6,19 +6,36 @@ use App\Http\Controllers\Controller;
 use App\Models\Bill;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class PdfController extends Controller
 {
-    public function generate(Request $request, Bill $bill): Response
+    public function generate(Request $request, Bill $bill)
     {
-        if ($bill->user_id !== $request->user()->id) {
-            abort(403, 'You do not own this bill');
+        // Auth: support both Authorization header and ?token= query parameter
+        $user = $request->user();
+
+        if (!$user && $request->query('token')) {
+            $accessToken = PersonalAccessToken::findToken($request->query('token'));
+            if ($accessToken) {
+                $user = $accessToken->tokenable;
+            }
+        }
+
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+
+        if ($bill->user_id !== $user->id) {
+            return response()->json([
+                'error' => 'forbidden',
+                'message' => 'You do not own this bill',
+            ], 403);
         }
 
         $bill->load(['participants', 'items.splits.participant', 'paidByParticipant']);
 
-        // Calculate shares (same logic as PaymentController)
+        // Calculate shares
         $shares = [];
         foreach ($bill->participants as $participant) {
             $shares[$participant->id] = [
