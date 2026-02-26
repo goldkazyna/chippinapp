@@ -54,7 +54,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/bills/{bill}/paid-by', [PaymentController::class, 'setPaidBy']);
     Route::get('/bills/{bill}/summary', [PaymentController::class, 'summary']);
 
-    // PDF (supports ?token= query parameter for browser tab opening)
-    Route::get('/bills/{bill}/pdf', [PdfController::class, 'generate'])
-        ->middleware(\App\Http\Middleware\TokenFromQuery::class);
 });
+
+// PDF — outside auth:sanctum group so TokenFromQuery runs BEFORE auth check
+Route::get('/bills/{bill}/pdf', [PdfController::class, 'generate'])
+    ->middleware([\App\Http\Middleware\TokenFromQuery::class, 'auth:sanctum']);
