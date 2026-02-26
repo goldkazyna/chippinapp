@@ -18,6 +18,9 @@ Route::get('/ping', function () {
 Route::post('/auth/{provider}', [AuthController::class, 'login'])
     ->whereIn('provider', ['google', 'apple', 'telegram']);
 
+// Dev login (only works when APP_ENV != production)
+Route::post('/auth/dev-login', [AuthController::class, 'devLogin']);
+
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);

@@ -87,6 +87,40 @@ class AuthController extends Controller
         ]);
     }
 
+    public function devLogin(Request $request): JsonResponse
+    {
+        if (app()->environment('production')) {
+            return response()->json([
+                'error' => 'not_available',
+                'message' => 'Dev login is not available in production',
+            ], 403);
+        }
+
+        $request->validate([
+            'email' => 'required|email',
+            'name' => 'sometimes|string|max:255',
+        ]);
+
+        $user = User::firstOrCreate(
+            ['email' => $request->email],
+            [
+                'name' => $request->name ?? 'Dev User',
+                'provider' => 'dev',
+                'provider_id' => 'dev_' . md5($request->email),
+            ]
+        );
+
+        $token = $user->createToken('dev-token')->plainTextToken;
+
+        return response()->json([
+            'data' => [
+                'user' => new UserResource($user),
+                'token' => $token,
+            ],
+            'message' => 'Dev login successful',
+        ]);
+    }
+
     public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();
