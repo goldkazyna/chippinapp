@@ -42,7 +42,7 @@ class PdfController extends Controller
 
         // Calculate debts
         $debts = [];
-        if ($bill->paid_by_participant_id) {
+        if ($bill->paid_by_participant_id && $bill->paidByParticipant) {
             $payerId = (int) $bill->paid_by_participant_id;
             $payerName = $bill->paidByParticipant->name;
 
@@ -66,7 +66,8 @@ class PdfController extends Controller
             'debts' => $debts,
         ]);
 
-        $filename = 'chippin_' . str_replace(' ', '_', $bill->name) . '_' . $bill->date->format('Y-m-d') . '.pdf';
+        $datePart = $bill->date ? $bill->date->format('Y-m-d') : now()->format('Y-m-d');
+        $filename = 'chippin_' . str_replace(' ', '_', $bill->name) . '_' . $datePart . '.pdf';
 
         return $pdf->download($filename);
     }
