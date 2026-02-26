@@ -1,0 +1,132 @@
+Chippin Backend API — Полный список эндпоинтов
+================================================
+
+Базовый URL: http://localhost:8080/api
+Авторизация: Bearer Token (Laravel Sanctum)
+Формат ответов: JSON { data: {...}, message: "..." }
+Формат ошибок: JSON { error: "...", message: "..." }
+
+================================================
+ПУБЛИЧНЫЕ МАРШРУТЫ (без токена)
+================================================
+
+1. GET /api/ping
+   Проверка работоспособности сервера
+   Ответ: { "message": "pong" }
+
+2. POST /api/auth/{provider}
+   OAuth авторизация (provider: google, apple, telegram)
+   Body: { "token": "oauth_token" }
+   Для Telegram: { "token": "...", "telegram_id": "123", "name": "Имя" }
+   Ответ: { data: { user: {...}, token: "sanctum_token" }, message: "..." }
+
+================================================
+ЗАЩИЩЁННЫЕ МАРШРУТЫ (требуют Header: Authorization: Bearer {token})
+================================================
+
+--- Пользователь ---
+
+3. GET /api/user
+   Получить текущего пользователя
+   Ответ: { data: { id, name, email, avatar, provider, default_currency, language, created_at } }
+
+4. PUT /api/user
+   Обновить профиль
+   Body: { "name": "Новое имя", "avatar": "https://..." }
+   Все поля опциональны
+
+5. PUT /api/user/settings
+   Обновить настройки
+   Body: { "default_currency": "USD", "language": "en" }
+   Все поля опциональны
+
+6. POST /api/auth/logout
+   Выход (удаляет текущий токен)
+
+--- Счета (Bills) ---
+
+7. POST /api/bills
+   Создать счёт
+   Body: { "name": "Ужин", "date": "2026-02-25", "currency": "KZT" }
+   Автоматически добавляет создателя как участника (is_owner: true)
+
+8. GET /api/bills
+   Список всех счетов текущего пользователя
+   Ответ включает количество участников и позиций
+
+9. GET /api/bills/{bill_id}
+   Детали счёта (с участниками, позициями, сплитами)
+
+10. DELETE /api/bills/{bill_id}
+    Удалить счёт (только владелец)
+
+--- Участники (Participants) ---
+
+11. POST /api/bills/{bill_id}/participants
+    Добавить участника
+    Body: { "name": "Аслан" }
+
+12. DELETE /api/bills/{bill_id}/participants/{participant_id}
+    Удалить участника
+    Нельзя удалить владельца или участника со сплитами
+
+--- Позиции (Bill Items) ---
+
+13. POST /api/bills/{bill_id}/items
+    Добавить позицию
+    Body: { "name": "Пицца", "quantity": 2, "price_per_unit": 3500 }
+    total считается автоматически (quantity * price_per_unit)
+    Общий total счёта пересчитывается
+
+14. PUT /api/bills/{bill_id}/items/{item_id}
+    Обновить позицию
+    Body: { "name": "Пицца Маргарита", "quantity": 1, "price_per_unit": 4000 }
+    Все поля опциональны, total пересчитывается
+
+15. DELETE /api/bills/{bill_id}/items/{item_id}
+    Удалить позицию (total счёта пересчитывается)
+
+--- Сканирование чеков ---
+
+16. POST /api/bills/{bill_id}/scan-receipt
+    Сканировать чек через Claude AI
+    Body: multipart/form-data, поле "image" (jpeg/png/webp, макс 10MB)
+    Ответ: { data: { items: [{ name, quantity, price_per_unit, total }] } }
+
+17. POST /api/bills/{bill_id}/items/bulk
+    Массовое добавление позиций (после сканирования)
+    Body: { "items": [{ "name": "Пицца", "quantity": 1, "price_per_unit": 3500 }, ...] }
+
+--- Разделение позиций (Splitting) ---
+
+18. POST /api/bills/{bill_id}/items/{item_id}/split
+    Разделить позицию между участниками
+
+    Равное разделение (между ВСЕМИ участниками):
+    Body: { "type": "equal" }
+
+    Пользовательское разделение:
+    Body: {
+      "type": "custom",
+      "splits": [
+        { "participant_id": 1, "quantity": 1 },
+        { "participant_id": 2, "quantity": 1 }
+      ]
+    }
+    Сумма quantity в splits должна равняться quantity позиции
+
+--- Оплата и сводка ---
+
+19. PUT /api/bills/{bill_id}/paid-by
+    Указать кто заплатил за весь счёт
+    Body: { "participant_id": 1 }
+
+20. GET /api/bills/{bill_id}/summary
+    Сводка: доли каждого + кто кому сколько должен
+    Ответ: { data: { payer, total, shares: [...], debts: [{ from, to, amount }] } }
+
+--- PDF ---
+
+21. GET /api/bills/{bill_id}/pdf
+    Скачать PDF со сводкой счёта
+    Ответ: файл PDF (Content-Disposition: attachment)
