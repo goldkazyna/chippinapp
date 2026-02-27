@@ -89,13 +89,6 @@ class AuthController extends Controller
 
     public function devLogin(Request $request): JsonResponse
     {
-        if (app()->environment('production')) {
-            return response()->json([
-                'error' => 'not_available',
-                'message' => 'Dev login is not available in production',
-            ], 403);
-        }
-
         $request->validate([
             'email' => 'required|email',
             'name' => 'sometimes|string|max:255',
