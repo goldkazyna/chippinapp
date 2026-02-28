@@ -16,7 +16,7 @@ class ClaudeService
         $this->model = 'claude-sonnet-4-20250514';
     }
 
-    public function scanReceipt(UploadedFile $image): array
+    public function scanReceipt(UploadedFile $image, string $lang = 'en'): array
     {
         $imageData = base64_encode(file_get_contents($image->getRealPath()));
         $mimeType = $image->getMimeType();
@@ -46,7 +46,7 @@ class ClaudeService
                         ],
                         [
                             'type' => 'text',
-                            'text' => 'Analyze this receipt image. Return JSON array of items with fields: name (string), quantity (integer), price_per_unit (number), total (number). Also return the receipt total. If unreadable, return empty array. Response format: {"items": [...], "total": number}. Return ONLY valid JSON, no other text.',
+                            'text' => $this->buildPrompt($lang),
                         ],
                     ],
                 ],
@@ -71,5 +71,14 @@ class ClaudeService
         }
 
         return $parsed;
+    }
+
+    private function buildPrompt(string $lang): string
+    {
+        $langInstruction = $lang === 'ru'
+            ? 'Return item names in Russian. If the receipt has bilingual names (e.g. "Батат фри / Sweet potato fries"), use only the Russian version (e.g. "Батат фри").'
+            : 'Return item names in English. If the receipt has bilingual names (e.g. "Батат фри / Sweet potato fries"), use only the English version (e.g. "Sweet potato fries").';
+
+        return "Analyze this receipt image. {$langInstruction} Return JSON array of items with fields: name (string), quantity (integer), price_per_unit (number), total (number). Also return the receipt total. If unreadable, return empty array. Response format: {\"items\": [...], \"total\": number}. Return ONLY valid JSON, no other text.";
     }
 }
