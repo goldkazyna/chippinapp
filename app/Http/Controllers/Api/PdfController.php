@@ -77,10 +77,13 @@ class PdfController extends Controller
             }
         }
 
+        $lang = $request->query('lang', 'en');
+
         $pdf = Pdf::loadView('pdf.bill', [
             'bill' => $bill,
             'shares' => array_values($shares),
             'debts' => $debts,
+            'lang' => $lang,
         ]);
 
         $datePart = $bill->date ? $bill->date->format('Y-m-d') : now()->format('Y-m-d');
