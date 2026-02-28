@@ -7,6 +7,7 @@ use App\Http\Requests\BulkStoreItemsRequest;
 use App\Http\Resources\BillItemResource;
 use App\Models\Bill;
 use App\Services\ClaudeService;
+use App\Services\WhisperService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -38,6 +39,47 @@ class ReceiptController extends Controller
             return response()->json([
                 'error' => 'scan_failed',
                 'message' => 'Failed to scan receipt: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function parseVoice(Request $request, Bill $bill, WhisperService $whisper, ClaudeService $claude): JsonResponse
+    {
+        if ($bill->user_id !== $request->user()->id) {
+            return response()->json([
+                'error' => 'forbidden',
+                'message' => 'You do not own this bill',
+            ], 403);
+        }
+
+        $request->validate([
+            'audio' => 'required|file|mimes:mp3,mp4,mpeg,mpga,m4a,wav,webm,ogg|max:25600',
+        ]);
+
+        try {
+            $lang = $request->input('lang', 'en');
+            $defaultCurrency = $request->input('default_currency', 'USD');
+
+            $text = $whisper->transcribe($request->file('audio'), $lang);
+
+            if (empty(trim($text))) {
+                return response()->json([
+                    'data' => ['items' => [], 'total' => 0, 'currency' => $defaultCurrency, 'transcription' => ''],
+                    'message' => 'Could not recognize speech.',
+                ]);
+            }
+
+            $result = $claude->parseVoiceText($text, $lang, $defaultCurrency);
+            $result['transcription'] = $text;
+
+            return response()->json([
+                'data' => $result,
+                'message' => 'Voice parsed successfully. Review items before saving.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'voice_parse_failed',
+                'message' => 'Failed to parse voice: ' . $e->getMessage(),
             ], 500);
         }
     }

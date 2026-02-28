@@ -45,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Receipt Scanning
     Route::post('/bills/{bill}/scan-receipt', [ReceiptController::class, 'scanReceipt']);
+    Route::post('/bills/{bill}/parse-voice', [ReceiptController::class, 'parseVoice']);
     Route::post('/bills/{bill}/items/bulk', [ReceiptController::class, 'bulkStore']);
 
     // Item Splitting
