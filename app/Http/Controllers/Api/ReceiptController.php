@@ -27,7 +27,8 @@ class ReceiptController extends Controller
 
         try {
             $lang = $request->input('lang', 'en');
-            $result = $claude->scanReceipt($request->file('image'), $lang);
+            $defaultCurrency = $request->input('default_currency', 'USD');
+            $result = $claude->scanReceipt($request->file('image'), $lang, $defaultCurrency);
 
             return response()->json([
                 'data' => $result,

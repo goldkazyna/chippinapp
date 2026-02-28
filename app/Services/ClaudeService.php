@@ -16,7 +16,7 @@ class ClaudeService
         $this->model = 'claude-sonnet-4-20250514';
     }
 
-    public function scanReceipt(UploadedFile $image, string $lang = 'en'): array
+    public function scanReceipt(UploadedFile $image, string $lang = 'en', string $defaultCurrency = 'USD'): array
     {
         $imageData = base64_encode(file_get_contents($image->getRealPath()));
         $mimeType = $image->getMimeType();
@@ -46,7 +46,7 @@ class ClaudeService
                         ],
                         [
                             'type' => 'text',
-                            'text' => $this->buildPrompt($lang),
+                            'text' => $this->buildPrompt($lang, $defaultCurrency),
                         ],
                     ],
                 ],
@@ -67,18 +67,24 @@ class ClaudeService
         $parsed = json_decode($content, true);
 
         if (!$parsed || !isset($parsed['items'])) {
-            return ['items' => [], 'total' => 0];
+            return ['items' => [], 'total' => 0, 'currency' => $defaultCurrency];
+        }
+
+        if (!isset($parsed['currency']) || empty($parsed['currency'])) {
+            $parsed['currency'] = $defaultCurrency;
         }
 
         return $parsed;
     }
 
-    private function buildPrompt(string $lang): string
+    private function buildPrompt(string $lang, string $defaultCurrency): string
     {
         $langInstruction = $lang === 'ru'
             ? 'Return item names in Russian. If the receipt has bilingual names (e.g. "Батат фри / Sweet potato fries"), use only the Russian version (e.g. "Батат фри").'
             : 'Return item names in English. If the receipt has bilingual names (e.g. "Батат фри / Sweet potato fries"), use only the English version (e.g. "Sweet potato fries").';
 
-        return "Analyze this receipt image. {$langInstruction} Return JSON array of items with fields: name (string), quantity (integer), price_per_unit (number), total (number). Also return the receipt total. If unreadable, return empty array. Response format: {\"items\": [...], \"total\": number}. Return ONLY valid JSON, no other text.";
+        $currencyInstruction = "Detect the currency from the receipt (look for symbols like $, €, ₽, £, ¥, ₸, د.إ or currency codes like USD, EUR, KZT, AED, RUB). Return its ISO 4217 code in the \"currency\" field. If no currency is visible on the receipt, use \"{$defaultCurrency}\".";
+
+        return "Analyze this receipt image. {$langInstruction} {$currencyInstruction} Return JSON array of items with fields: name (string), quantity (integer), price_per_unit (number), total (number). Also return the receipt total and currency. If unreadable, return empty array. Response format: {\"items\": [...], \"total\": number, \"currency\": \"ISO_CODE\"}. Return ONLY valid JSON, no other text.";
     }
 }
