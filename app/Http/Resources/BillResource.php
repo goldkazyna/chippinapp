@@ -15,6 +15,7 @@ class BillResource extends JsonResource
             'date' => $this->date->format('Y-m-d'),
             'currency' => $this->currency,
             'total' => $this->total,
+            'paid_by_participant_id' => $this->paid_by_participant_id,
             'participants_count' => $this->whenCounted('participants'),
             'items_count' => $this->whenCounted('items'),
             'created_at' => $this->created_at,
