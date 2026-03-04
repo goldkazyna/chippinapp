@@ -47,13 +47,6 @@ class PaymentController extends Controller
             ], 403);
         }
 
-        if (!$bill->paid_by_participant_id) {
-            return response()->json([
-                'error' => 'no_payer',
-                'message' => 'No payer has been set for this bill',
-            ], 422);
-        }
-
         $bill->load(['participants', 'items.splits', 'paidByParticipant']);
 
         // Calculate each participant's share from splits
@@ -79,21 +72,25 @@ class PaymentController extends Controller
             $shares[$key]['amount'] = round($share['amount'], 2);
         }
 
-        // Calculate debts
-        $payerId = (int) $bill->paid_by_participant_id;
-        $payerName = $bill->paidByParticipant->name;
+        // Calculate debts (only if payer is set)
+        $payerName = null;
         $debts = [];
 
-        foreach ($shares as $share) {
-            if ($share['participant_id'] === $payerId) {
-                continue;
-            }
-            if ($share['amount'] > 0) {
-                $debts[] = [
-                    'from' => $share['name'],
-                    'to' => $payerName,
-                    'amount' => $share['amount'],
-                ];
+        if ($bill->paid_by_participant_id && $bill->paidByParticipant) {
+            $payerId = (int) $bill->paid_by_participant_id;
+            $payerName = $bill->paidByParticipant->name;
+
+            foreach ($shares as $share) {
+                if ($share['participant_id'] === $payerId) {
+                    continue;
+                }
+                if ($share['amount'] > 0) {
+                    $debts[] = [
+                        'from' => $share['name'],
+                        'to' => $payerName,
+                        'amount' => $share['amount'],
+                    ];
+                }
             }
         }
 
@@ -104,7 +101,9 @@ class PaymentController extends Controller
                 'shares' => array_values($shares),
                 'debts' => $debts,
             ],
-            'message' => 'Summary calculated successfully',
+            'message' => $payerName
+                ? 'Summary calculated successfully'
+                : 'Summary calculated without payer — set paid_by to see debts',
         ]);
     }
 }
