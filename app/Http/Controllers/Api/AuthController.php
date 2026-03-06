@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use Firebase\JWT\JWK;
+use Firebase\JWT\JWT;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Laravel\Socialite\Facades\Socialite;
+use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
 {
@@ -25,12 +27,11 @@ class AuthController extends Controller
         }
 
         try {
-            if ($provider === 'telegram') {
-                $user = $this->handleTelegramAuth($request);
-            } else {
-                $socialUser = Socialite::driver($provider)->stateless()->userFromToken($request->token);
-                $user = $this->findOrCreateUser($socialUser, $provider);
-            }
+            $user = match ($provider) {
+                'google' => $this->handleGoogleAuth($request),
+                'apple' => $this->handleAppleAuth($request),
+                'telegram' => $this->handleTelegramAuth($request),
+            };
 
             $token = $user->createToken('mobile-app')->plainTextToken;
 
@@ -123,10 +124,54 @@ class AuthController extends Controller
         ]);
     }
 
-    private function findOrCreateUser($socialUser, string $provider): User
+    private function handleGoogleAuth(Request $request): User
+    {
+        $response = Http::withToken($request->token)
+            ->get('https://www.googleapis.com/oauth2/v3/userinfo');
+
+        if (!$response->successful()) {
+            throw new \Exception('Invalid Google token');
+        }
+
+        $data = $response->json();
+
+        return $this->findOrCreateUser(
+            provider: 'google',
+            providerId: $data['sub'],
+            email: $data['email'] ?? null,
+            name: $data['name'] ?? null,
+            avatar: $data['picture'] ?? null,
+        );
+    }
+
+    private function handleAppleAuth(Request $request): User
+    {
+        $response = Http::get('https://appleid.apple.com/auth/keys');
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to fetch Apple public keys');
+        }
+
+        $keys = JWK::parseKeySet($response->json());
+        $decoded = JWT::decode($request->token, $keys);
+
+        if ($decoded->iss !== 'https://appleid.apple.com') {
+            throw new \Exception('Invalid Apple token issuer');
+        }
+
+        return $this->findOrCreateUser(
+            provider: 'apple',
+            providerId: $decoded->sub,
+            email: $decoded->email ?? null,
+            name: $request->input('name'),
+            avatar: null,
+        );
+    }
+
+    private function findOrCreateUser(string $provider, string $providerId, ?string $email, ?string $name, ?string $avatar): User
     {
         $user = User::where('provider', $provider)
-            ->where('provider_id', $socialUser->getId())
+            ->where('provider_id', $providerId)
             ->first();
 
         if ($user) {
@@ -134,24 +179,24 @@ class AuthController extends Controller
         }
 
         // Check if user with same email exists
-        if ($socialUser->getEmail()) {
-            $user = User::where('email', $socialUser->getEmail())->first();
+        if ($email) {
+            $user = User::where('email', $email)->first();
             if ($user) {
                 $user->update([
                     'provider' => $provider,
-                    'provider_id' => $socialUser->getId(),
-                    'avatar' => $socialUser->getAvatar() ?? $user->avatar,
+                    'provider_id' => $providerId,
+                    'avatar' => $avatar ?? $user->avatar,
                 ]);
                 return $user;
             }
         }
 
         return User::create([
-            'name' => $socialUser->getName() ?? $socialUser->getNickname() ?? 'User',
-            'email' => $socialUser->getEmail(),
+            'name' => $name ?? 'User',
+            'email' => $email,
             'provider' => $provider,
-            'provider_id' => $socialUser->getId(),
-            'avatar' => $socialUser->getAvatar(),
+            'provider_id' => $providerId,
+            'avatar' => $avatar,
         ]);
     }
 
