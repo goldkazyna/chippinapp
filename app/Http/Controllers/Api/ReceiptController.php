@@ -28,7 +28,7 @@ class ReceiptController extends Controller
 
         try {
             $lang = $request->input('lang', 'en');
-            $defaultCurrency = $request->input('default_currency', 'USD');
+            $defaultCurrency = $bill->currency ?? 'USD';
             $result = $claude->scanReceipt($request->file('image'), $lang, $defaultCurrency);
 
             return response()->json([
@@ -58,7 +58,7 @@ class ReceiptController extends Controller
 
         try {
             $lang = $request->input('lang', 'en');
-            $defaultCurrency = $request->input('default_currency', 'USD');
+            $defaultCurrency = $bill->currency ?? 'USD';
 
             $text = $whisper->transcribe($request->file('audio'), $lang);
 
