@@ -47,7 +47,7 @@ class PaymentController extends Controller
             ], 403);
         }
 
-        $bill->load(['participants', 'items.splits', 'paidByParticipant']);
+        $bill->load(['participants', 'items.splits', 'paidByParticipant', 'adjustments']);
 
         // Calculate each participant's share from splits
         $shares = [];
@@ -68,6 +68,49 @@ class PaymentController extends Controller
         }
 
         // Round amounts (without reference to avoid PHP foreach bug)
+        foreach ($shares as $key => $share) {
+            $shares[$key]['amount'] = round($share['amount'], 2);
+        }
+
+        // Apply adjustments to shares
+        $adjustments = $bill->adjustments;
+        $subtotal = $bill->items->sum('total');
+        $participantCount = $bill->participants->count();
+
+        $adjustmentTotal = 0;
+        foreach ($adjustments as $adj) {
+            $sign = $adj->type === 'discount' ? -1 : 1;
+            $adjustmentTotal += $adj->amount * $sign;
+
+            $allocatedAdj = 0;
+            $participants = $bill->participants->values();
+            $lastIdx = $participants->count() - 1;
+
+            foreach ($participants as $idx => $participant) {
+                if ($adj->split_mode === 'equal') {
+                    if ($idx === $lastIdx) {
+                        $adjShare = round($adj->amount - $allocatedAdj, 2);
+                    } else {
+                        $adjShare = round($adj->amount / $participantCount, 2);
+                        $allocatedAdj += $adjShare;
+                    }
+                } else {
+                    // proportional to their base share
+                    $baseShare = $shares[$participant->id]['amount'] ?? 0;
+                    if ($idx === $lastIdx) {
+                        $adjShare = round($adj->amount - $allocatedAdj, 2);
+                    } else {
+                        $adjShare = $subtotal > 0
+                            ? round($adj->amount * ($baseShare / $subtotal), 2)
+                            : 0;
+                        $allocatedAdj += $adjShare;
+                    }
+                }
+                $shares[$participant->id]['amount'] += $adjShare * $sign;
+            }
+        }
+
+        // Re-round after adjustments
         foreach ($shares as $key => $share) {
             $shares[$key]['amount'] = round($share['amount'], 2);
         }
@@ -97,7 +140,15 @@ class PaymentController extends Controller
         return response()->json([
             'data' => [
                 'payer' => $payerName,
-                'total' => $bill->total,
+                'total' => round($subtotal + $adjustmentTotal, 2),
+                'subtotal' => $subtotal,
+                'adjustments' => $adjustments->map(fn($a) => [
+                    'type' => $a->type,
+                    'calc_mode' => $a->calc_mode,
+                    'value' => $a->value,
+                    'amount' => $a->amount,
+                    'split_mode' => $a->split_mode,
+                ]),
                 'shares' => array_values($shares),
                 'debts' => $debts,
             ],
