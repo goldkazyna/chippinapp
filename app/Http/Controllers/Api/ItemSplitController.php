@@ -97,8 +97,17 @@ class ItemSplitController extends Controller
 
     private function createCustomSplits(BillItem $item, array $splits): void
     {
-        foreach ($splits as $split) {
-            $amount = round(($split['quantity'] / $item->quantity) * $item->total, 2);
+        $allocatedAmount = 0;
+        $lastIndex = count($splits) - 1;
+
+        foreach ($splits as $index => $split) {
+            if ($index === $lastIndex) {
+                // Last person gets remainder to avoid rounding drift
+                $amount = round($item->total - $allocatedAmount, 2);
+            } else {
+                $amount = round(($split['quantity'] / $item->quantity) * $item->total, 2);
+                $allocatedAmount += $amount;
+            }
 
             $item->splits()->create([
                 'participant_id' => $split['participant_id'],
