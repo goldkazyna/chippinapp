@@ -17,7 +17,7 @@ class SplitItemRequest extends FormRequest
             'type' => 'required|in:equal,custom',
             'splits' => 'required_if:type,custom|array|min:1',
             'splits.*.participant_id' => 'required_with:splits|integer|exists:participants,id',
-            'splits.*.quantity' => 'required_with:splits|integer|min:1',
+            'splits.*.quantity' => 'required_with:splits|numeric|min:0.01',
         ];
     }
 }

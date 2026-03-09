@@ -85,7 +85,7 @@ class ItemSplitController extends Controller
         }
 
         $totalSplitQty = array_sum(array_column($splits, 'quantity'));
-        if ($totalSplitQty !== $item->quantity) {
+        if (abs($totalSplitQty - $item->quantity) > 0.01) {
             return response()->json([
                 'error' => 'quantity_mismatch',
                 'message' => "Total split quantity ({$totalSplitQty}) must equal item quantity ({$item->quantity})",
