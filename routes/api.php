@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\BillController;
 use App\Http\Controllers\Api\BillItemController;
 use App\Http\Controllers\Api\ParticipantController;
 use App\Http\Controllers\Api\ItemSplitController;
+use App\Http\Controllers\Api\AdjustmentController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PdfController;
 use App\Http\Controllers\Api\ReceiptController;
@@ -50,6 +51,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Item Splitting
     Route::post('/bills/{bill}/items/{item}/split', [ItemSplitController::class, 'split']);
+
+    // Adjustments
+    Route::post('/bills/{bill}/adjustments', [AdjustmentController::class, 'sync']);
 
     // Payment & Summary
     Route::put('/bills/{bill}/paid-by', [PaymentController::class, 'setPaidBy']);

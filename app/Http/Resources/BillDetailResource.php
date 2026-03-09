@@ -19,6 +19,7 @@ class BillDetailResource extends JsonResource
             'paid_by' => new ParticipantResource($this->whenLoaded('paidByParticipant')),
             'participants' => ParticipantResource::collection($this->whenLoaded('participants')),
             'items' => BillItemResource::collection($this->whenLoaded('items')),
+            'adjustments' => $this->whenLoaded('adjustments'),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

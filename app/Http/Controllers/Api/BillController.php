@@ -56,7 +56,7 @@ class BillController extends Controller
             ], 403);
         }
 
-        $bill->load(['participants', 'items.splits.participant', 'paidByParticipant']);
+        $bill->load(['participants', 'items.splits.participant', 'paidByParticipant', 'adjustments']);
 
         return response()->json([
             'data' => new BillDetailResource($bill),
