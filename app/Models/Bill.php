@@ -48,6 +48,11 @@ class Bill extends Model
         return $this->belongsTo(Participant::class, 'paid_by_participant_id');
     }
 
+    public function adjustments(): HasMany
+    {
+        return $this->hasMany(BillAdjustment::class);
+    }
+
     public function recalculateTotal(): void
     {
         $this->update(['total' => $this->items()->sum('total')]);
