@@ -33,9 +33,9 @@ class PdfController extends Controller
             ], 403);
         }
 
-        $bill->load(['participants', 'items.splits.participant', 'paidByParticipant']);
+        $bill->load(['participants', 'items.splits.participant', 'paidByParticipant', 'adjustments']);
 
-        // Calculate shares
+        // Calculate shares from item splits
         $shares = [];
         foreach ($bill->participants as $participant) {
             $shares[$participant->id] = [
@@ -53,9 +53,33 @@ class PdfController extends Controller
             }
         }
 
+        $subtotal = $bill->items->sum('total');
+        $participantCount = $bill->participants->count();
+
+        // Distribute adjustments across shares
+        $adjustmentTotal = 0;
+        foreach ($bill->adjustments as $adj) {
+            $sign = $adj->type === 'discount' ? -1 : 1;
+            $adjustmentTotal += $adj->amount * $sign;
+
+            foreach ($bill->participants as $participant) {
+                if ($adj->split_mode === 'equal') {
+                    $share = round($adj->amount / max($participantCount, 1), 2);
+                } else {
+                    $baseShare = $shares[$participant->id]['amount'] ?? 0;
+                    $share = $subtotal > 0
+                        ? round($adj->amount * ($baseShare / $subtotal), 2)
+                        : 0;
+                }
+                $shares[$participant->id]['amount'] += $share * $sign;
+            }
+        }
+
         foreach ($shares as $key => $share) {
             $shares[$key]['amount'] = round($share['amount'], 2);
         }
+
+        $grandTotal = round($subtotal + $adjustmentTotal, 2);
 
         // Calculate debts
         $debts = [];
@@ -84,6 +108,9 @@ class PdfController extends Controller
             'shares' => array_values($shares),
             'debts' => $debts,
             'lang' => $lang,
+            'subtotal' => $subtotal,
+            'adjustments' => $bill->adjustments,
+            'grandTotal' => $grandTotal,
         ]);
 
         $datePart = $bill->date ? $bill->date->format('Y-m-d') : now()->format('Y-m-d');
