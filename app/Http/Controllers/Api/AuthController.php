@@ -207,23 +207,44 @@ class AuthController extends Controller
     private function handleTelegramAuth(Request $request): User
     {
         $request->validate([
-            'token' => 'required|string',
-            'telegram_id' => 'required|string',
-            'name' => 'required|string',
+            'token' => 'required|string', // JSON-encoded Telegram auth data
         ]);
 
-        $user = User::where('provider', 'telegram')
-            ->where('provider_id', $request->telegram_id)
-            ->first();
-
-        if ($user) {
-            return $user;
+        $data = json_decode($request->token, true);
+        if (!$data || !isset($data['id'], $data['hash'])) {
+            throw new \Exception('Invalid Telegram auth data');
         }
 
-        return User::create([
-            'name' => $request->name,
-            'provider' => 'telegram',
-            'provider_id' => $request->telegram_id,
-        ]);
+        // Verify hash per Telegram docs
+        $botToken = config('services.telegram.bot_token');
+        $checkHash = $data['hash'];
+        unset($data['hash']);
+
+        ksort($data);
+        $dataCheckString = collect($data)
+            ->map(fn($v, $k) => "$k=$v")
+            ->implode("\n");
+
+        $secretKey = hash('sha256', $botToken, true);
+        $hash = hash_hmac('sha256', $dataCheckString, $secretKey);
+
+        if (!hash_equals($hash, $checkHash)) {
+            throw new \Exception('Invalid Telegram auth hash');
+        }
+
+        // Check auth_date is not too old (allow 1 day)
+        if (isset($data['auth_date']) && (time() - $data['auth_date']) > 86400) {
+            throw new \Exception('Telegram auth data expired');
+        }
+
+        $name = trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? '')) ?: 'Telegram User';
+
+        return $this->findOrCreateUser(
+            provider: 'telegram',
+            providerId: (string) $data['id'],
+            email: null,
+            name: $name,
+            avatar: $data['photo_url'] ?? null,
+        );
     }
 }
