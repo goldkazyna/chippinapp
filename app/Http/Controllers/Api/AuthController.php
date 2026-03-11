@@ -159,6 +159,10 @@ class AuthController extends Controller
             throw new \Exception('Invalid Apple token issuer');
         }
 
+        if ($decoded->aud !== 'com.chippin.chippin') {
+            throw new \Exception('Invalid Apple token audience');
+        }
+
         return $this->findOrCreateUser(
             provider: 'apple',
             providerId: $decoded->sub,
